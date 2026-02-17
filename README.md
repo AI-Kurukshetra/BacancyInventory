@@ -1,0 +1,2 @@
+# BacancyInventory
+Inventory Management Plarform
