@@ -61,6 +61,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessage, setChatMessage] = useState("");
+  const [chatAnswer, setChatAnswer] = useState<string | null>(null);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const orgDropdownRef = useRef<HTMLDivElement>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
@@ -80,6 +84,36 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     document.addEventListener("click", handleClickOutside);
     return () => document.removeEventListener("click", handleClickOutside);
   }, [profileOpen, orgDropdownOpen]);
+
+  async function handleChatSend(optionalText?: string) {
+    const text = (optionalText ?? chatMessage).trim();
+    if (!text || chatLoading) return;
+
+    setChatLoading(true);
+    setChatError(null);
+    setChatAnswer(null);
+
+    try {
+      const res = await fetch("/api/db-agent/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json?.error || "Something went wrong while contacting the assistant.");
+      }
+
+      setChatAnswer(json?.response ?? "I generated a response, but it was empty.");
+      setChatMessage("");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to contact the assistant.";
+      setChatError(msg);
+    } finally {
+      setChatLoading(false);
+    }
+  }
 
   useEffect(() => {
     async function initialise() {
@@ -379,7 +413,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           {children}
         </main>
 
-        {/* Floating chatbot pop in the corner (UI only) */}
+        {/* Floating chatbot pop in the corner */}
         <div className="pointer-events-none fixed bottom-5 right-5 z-40 sm:bottom-6 sm:right-6">
           <div className="pointer-events-auto flex flex-col items-end gap-3">
             {chatOpen && (
@@ -425,29 +459,57 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                           key={label}
                           type="button"
                           className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-[11px] text-neutral-700 shadow-sm hover:border-red-200 hover:text-red-700"
+                          onClick={() => {
+                            setChatMessage(label);
+                            void handleChatSend(label);
+                          }}
                         >
                           {label}
                         </button>
                       ))}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-3 py-2 text-[11px] text-neutral-500">
-                    This is a demo UI only. Wire this input to your real support bot or FAQ API when
-                    you’re ready.
-                  </div>
+                  {chatError && (
+                    <div className="mx-3 rounded-2xl border border-red-100 bg-red-50 px-3 py-2 text-[11px] text-red-700">
+                      {chatError}
+                    </div>
+                  )}
+                  {chatLoading && !chatError && (
+                    <p className="px-4 text-[11px] text-neutral-500">Thinking about your data…</p>
+                  )}
+                  {chatAnswer && !chatError && (
+                    <div className="flex items-start gap-2 px-4 pb-2">
+                      <div className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-neutral-100 text-red-600">
+                        <MessageCircle className="h-4 w-4" />
+                      </div>
+                      <div className="max-w-[220px] rounded-2xl rounded-tl-sm bg-white px-3 py-2 text-neutral-800 shadow-sm">
+                        <p className="whitespace-pre-line">{chatAnswer}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="border-t border-neutral-100 bg-neutral-50/80 px-3 py-2.5">
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
                       placeholder="Type your message…"
+                      value={chatMessage}
+                      onChange={(e) => setChatMessage(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void handleChatSend();
+                        }
+                      }}
                       className="h-9 flex-1 rounded-full border border-neutral-200 bg-white px-3 text-sm text-neutral-800 outline-none placeholder:text-neutral-400 focus:border-red-500 focus:ring-1 focus:ring-red-500"
                     />
                     <button
                       type="button"
+                      disabled={chatLoading || !chatMessage.trim()}
+                      onClick={() => void handleChatSend()}
                       className="inline-flex h-9 items-center rounded-full bg-red-600 px-3 text-xs font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-red-700"
                     >
-                      Send
+                      {chatLoading ? "Sending…" : "Send"}
                     </button>
                   </div>
                 </div>

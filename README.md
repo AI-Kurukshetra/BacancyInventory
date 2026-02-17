@@ -44,3 +44,15 @@ management app with multi-organization support and Zoho-like UI.
 
 Vercel’s logs plus Supabase logs/console will give you basic monitoring
 of API errors and slow queries.
+
+### DB Agent (natural language to SQL)
+
+A simple agent answers questions in plain English using your Supabase data: Groq turns the question into SQL, Supabase runs it via a read-only RPC.
+
+1. **Env vars** (in `.env` or Vercel): `GROQ_API_KEY` (from Groq Console) and `SUPABASE_SERVICE_ROLE_KEY` (Supabase Project Settings → API, service_role). Never expose the service role key in the browser.
+
+2. **One-time setup:** In Supabase SQL Editor, run the contents of `supabase/execute_sql_rpc.sql` to create the read-only `execute_sql` RPC (SELECT only, max 50 rows).
+
+3. **API:** POST `/api/db-agent/chat` with body `{ "message": "Show top 5 customers by revenue" }`. Response: `{ "response": "...", "data": [...], "sql": "SELECT ..." }`.
+
+4. **Example:** `curl -X POST http://localhost:3000/api/db-agent/chat -H "Content-Type: application/json" -d '{"message":"How many products?"}'`
